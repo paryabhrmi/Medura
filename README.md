@@ -40,13 +40,30 @@ python3 -m http.server 8000
 
 ## Notes on behaviour
 
-- The canvas is resized to the real device pixel ratio, so the artwork stays
-  sharp on high-DPI screens and re-renders on resize and rotation.
-- The page background is sampled from the artboard's own edge colour, which
-  makes the letterbox bars invisible at any aspect ratio.
+**The state machine is named explicitly, and that is load-bearing.** Passing
+neither `animations` nor `stateMachines` does *not* start the artboard's state
+machine — the runtime's `atLeastOne` picks the first *timeline* and only falls
+back to a state machine when the artboard has no timelines at all. Since
+`ArtboardMaster` has nine timelines, the file rendered, played `Cover` once,
+froze, and ignored every click. `stateMachines: "State Machine 1"` fixes it;
+`ensureStateMachineRunning()` falls back to whatever the artboard actually has
+if that name is changed in the editor.
+
+- `autoBind` and `automaticallyHandleEvents` are on, so the file's data-bound
+  view models and its authored Rive events drive themselves.
+- Fit is `Fill`, so the artboard covers the viewport with no letterbox bars.
+  Fill stretches, which is invisible near the artboard's own ~16:9 shape but
+  unreadable on a phone held portrait, so past `MAX_STRETCH` (35%) it falls
+  back to `Contain`. Set `MAX_STRETCH = 0` in `index.html` to always stretch.
+- The canvas tracks the real device pixel ratio and re-renders on resize and
+  rotation, which also keeps pointer hit-testing aligned with the artwork.
 - Playback pauses while the tab is hidden.
-- The artboard is a wide desktop layout, so portrait phones get a brief
-  "rotate your device" hint.
+- Portrait phones get a brief "rotate your device" hint.
+
+Interactivity is covered by a Playwright check that hashes canvas pixels before
+and after each pointer event — hover and click on the nav tabs, theme toggle,
+organ hotspots and zoom controls all produce real frame changes, on mouse and
+on touch.
 
 ## Replacing the animation
 

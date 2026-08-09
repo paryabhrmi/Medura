@@ -167,6 +167,20 @@
   var WASM_URL = "vendor/rive/rive.wasm";
   var WASM_FALLBACK_URL = "vendor/rive/rive_fallback.wasm";
 
+  // The interactive layer lives in this state machine on the default artboard.
+  // It must be named explicitly: with neither `animations` nor `stateMachines`
+  // set, the runtime plays the artboard's first *timeline* and only falls back
+  // to a state machine when the artboard has no timelines at all — so the file
+  // would render, play "Cover" once, freeze, and never respond to input.
+  var STATE_MACHINE = "State Machine 1";
+
+  // The artboard fills the viewport (Fit.Fill) rather than sitting inside
+  // letterbox bars. Fill stretches, which is imperceptible while the window is
+  // near the artboard's own ~16:9 shape but turns the UI unreadable on a phone
+  // held portrait — so past this much distortion it falls back to Contain.
+  // Set to 0 to always stretch.
+  var MAX_STRETCH = 0.35;
+
   var canvas  = document.getElementById("rive-canvas");
   var overlay = document.getElementById("overlay");
   var spinner = document.getElementById("spinner");
@@ -273,15 +287,18 @@
       buffer: buffer,
       canvas: canvas,
       autoplay: true,
-      // Omitting `artboard`/`stateMachines` names lets Rive pick the file's
-      // defaults, which keeps this working if the artboard is renamed.
+      stateMachines: STATE_MACHINE,
+      // Data-bound view models and the file's own Rive events (cursor changes,
+      // open-url actions) are what the artboard was authored against.
       autoBind: true,
+      automaticallyHandleEvents: true,
       layout: new window.rive.Layout({
-        fit: window.rive.Fit.Contain,
+        fit: window.rive.Fit.Fill,
         alignment: window.rive.Alignment.Center
       }),
       onLoad: function () {
         resize();
+        ensureStateMachineRunning();
         hideOverlay();
         document.body.classList.add("is-ready");
         showRotateHint();
@@ -290,16 +307,35 @@
         showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
       }
     });
+  }
 
-    // A state machine may exist without being auto-detected on some builds.
-    riveInstance.on("load", function () {
-      try {
-        var machines = riveInstance.stateMachineNames || [];
-        if (machines.length && !riveInstance.isPlaying) {
-          riveInstance.play(machines[0]);
-        }
-      } catch (e) { /* default playback already running */ }
+  // Stretch to fill, unless doing so would distort the artboard past MAX_STRETCH.
+  function applyFit() {
+    if (!riveInstance || !riveInstance.loaded) return;
+    var art = riveInstance.artboardWidth / riveInstance.artboardHeight;
+    var view = canvas.clientWidth / canvas.clientHeight;
+    if (!art || !view) return;
+
+    var stretch = Math.abs(view - art) / art;
+    var fit = (MAX_STRETCH && stretch > MAX_STRETCH)
+      ? window.rive.Fit.Contain
+      : window.rive.Fit.Fill;
+
+    if (riveInstance.layout.fit === fit) return;
+    riveInstance.layout = new window.rive.Layout({
+      fit: fit,
+      alignment: window.rive.Alignment.Center
     });
+  }
+
+  // Guards against STATE_MACHINE being renamed in the Rive editor: if the named
+  // machine did not start, fall back to whatever the artboard actually has.
+  function ensureStateMachineRunning() {
+    var available = riveInstance.stateMachineNames || [];
+    var running = riveInstance.playingStateMachineNames || [];
+    if (running.length || !available.length) return;
+    riveInstance.stop();
+    riveInstance.play(available[0]);
   }
 
   // The hint is CSS-gated to portrait phones; this only handles its timing.
@@ -316,6 +352,7 @@
   function resize() {
     if (!riveInstance) return;
     riveInstance.resizeDrawingSurfaceToCanvas();
+    applyFit();
   }
 
   var resizeTimer = null;
