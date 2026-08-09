@@ -10,6 +10,7 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | `rive/medura_project_v1.riv` | The Rive file (~1.6 MB) |
 | `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime (`rive.js` + WebAssembly) |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
+| `profile/` | Staging area for the `paryabhrmi/paryabhrmi` profile README — see `profile/SETUP.md` |
 
 Everything is served from this repository — the page makes no third-party
 requests, so no CDN outage, version drift, or content blocker can break it.

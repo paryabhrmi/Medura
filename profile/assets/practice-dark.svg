@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="Practice map. A design set containing Figma, Rive, motion and type and grid, overlapping an engineering set containing TypeScript, React, Canvas and WebGL, and Git and CI. The overlap is labelled prototypes, design systems, tokens and motion spec.">
+<title>Practice map — where design and engineering overlap</title>
+<style><![CDATA[
+  .mono{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+  .sans{font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif}
+  .pulse{animation:pulse 7s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.10}50%{opacity:.20}}
+  .ants{animation:ants 3.5s linear infinite}
+  @keyframes ants{to{stroke-dashoffset:-32}}
+  @media (prefers-reduced-motion:reduce){.pulse,.ants{animation:none}}
+]]></style>
+<defs>
+  <clipPath id="setA"><rect x="100" y="70" width="640" height="220" rx="110"/></clipPath>
+</defs>
+
+<rect width="1280" height="360" fill="#0D1117"/>
+<text x="64" y="44" class="mono" font-size="13" letter-spacing="3" fill="#8B949E">02 &#8212; PRACTICE MAP</text>
+<path d="M64 58 H1216" stroke="#30363D"/>
+
+<g clip-path="url(#setA)">
+  <rect class="pulse" x="540" y="70" width="640" height="220" rx="110" fill="#FF6A3D"/>
+</g>
+<g fill="none" stroke="#30363D" stroke-width="1.5">
+  <rect x="100" y="70" width="640" height="220" rx="110"/>
+  <rect x="540" y="70" width="640" height="220" rx="110"/>
+</g>
+<path class="ants" d="M640 70 V290" stroke="#FF6A3D" stroke-width="1" stroke-dasharray="6 10" opacity="0.5"/>
+
+<g text-anchor="middle">
+  <text x="320" y="132" class="sans" font-size="21" font-weight="700" letter-spacing="4" fill="#E6EDF3">DESIGN</text>
+  <text x="960" y="132" class="sans" font-size="21" font-weight="700" letter-spacing="4" fill="#E6EDF3">ENGINEERING</text>
+  <g class="mono" font-size="13" letter-spacing="1" fill="#8B949E">
+    <text x="320" y="176">FIGMA</text>
+    <text x="320" y="202">RIVE</text>
+    <text x="320" y="228">MOTION</text>
+    <text x="320" y="254">TYPE &amp; GRID</text>
+    <text x="960" y="176">TYPESCRIPT</text>
+    <text x="960" y="202">REACT</text>
+    <text x="960" y="228">CANVAS / WEBGL</text>
+    <text x="960" y="254">GIT &amp; CI</text>
+  </g>
+  <g class="mono" font-size="12" font-weight="700" letter-spacing="0.5" fill="#FF6A3D">
+    <text x="640" y="176">PROTOTYPES</text>
+    <text x="640" y="202">DESIGN SYSTEMS</text>
+    <text x="640" y="228">TOKENS</text>
+    <text x="640" y="254">MOTION SPEC</text>
+  </g>
+  <text x="640" y="330" class="mono" font-size="13" letter-spacing="2" fill="#8B949E">THE OVERLAP IS THE JOB</text>
+</g>
+</svg>
