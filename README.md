@@ -9,7 +9,6 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | `index.html` | The whole site: full-screen canvas, loader, Rive bootstrapping |
 | `rive/medura_project_v1.riv` | The Rive file (~1.6 MB) |
 | `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime (`rive.js` + WebAssembly) |
-| `.github/workflows/pages.yml` | Builds and deploys the site to GitHub Pages |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
 
 Everything is served from this repository — the page makes no third-party
@@ -17,18 +16,17 @@ requests, so no CDN outage, version drift, or content blocker can break it.
 `index.html` points the runtime at the bundled `.wasm` via
 `RuntimeLoader.setWasmUrl()` instead of its default CDN location.
 
-## Enabling GitHub Pages
+## Deployment
 
-The deploy workflow is committed and runs on every push, but Pages itself has
-to be switched on once by a repository admin — the workflow's `GITHUB_TOKEN`
-cannot do it (`Resource not accessible by integration`), so `configure-pages`
-fails until this is done:
+The site is live at **https://paryabhrmi.github.io/Medura/**.
 
-1. Open **Settings → Pages** in this repository.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. Re-run the *Deploy to GitHub Pages* workflow from the **Actions** tab, or push a commit.
+Pages is configured under **Settings → Pages** as *Deploy from a branch*,
+serving this branch from the repository root. GitHub rebuilds and republishes
+on every push, so no build step or Actions workflow is involved — the files in
+this repository are exactly what is served.
 
-The site then lives at `https://paryabhrmi.github.io/Medura/`.
+`.nojekyll` matters here: without it Pages would run Jekyll, which excludes
+`vendor/` from its output by default and would leave the Rive runtime 404ing.
 
 ## Running locally
 
