@@ -60,34 +60,42 @@ rasteriser, so it was the source of the interaction lag. `index.html` loads
 `@rive-app/webgl2` and only falls back to the canvas build when
 `getContext("webgl2")` fails.
 
-**Resolution is adaptive, because this artboard is expensive.** Twenty-odd
-nested artboards, particle systems and soft glows all advance every frame, so
-no single fixed resolution suits every machine. Three limits apply in order:
-`MAX_DPR` (2) caps dense screens, `PIXEL_BUDGET` (2.3M) caps the starting
-surface whatever the window size, and then a loop samples real frame times and
-trades resolution for smoothness until the frame budget is met.
+**Fit is `Layout`, not `Fill`.** The board is authored at 1440x810. `Fill`
+scaled that fixed board up to the window, which stretched it off its aspect
+ratio and — because effect cost is not linear in magnification, blur going with
+the square of its radius — made this design's large soft glows more expensive
+the bigger the display. `Layout` resizes the *artboard* to the canvas instead,
+so the file's layout components reflow, nothing stretches, and effects cost the
+same at any window size. Verified reflowing correctly at 1024x900, an aspect
+ratio nowhere near the authored one.
 
-The loop steps *proportionally*: cost tracks area, so meeting the budget needs
-about `sqrt(budget / measured)` of the current linear scale, and a machine four
-times over budget halves its resolution in one window rather than creeping down
-in fixed notches. It judges on whichever comes first — 60 frames or one second —
-so a struggling machine is not left waiting for a frame count it will not reach,
-and it climbs back up in smaller steps with a gap between the two thresholds so
-it settles instead of oscillating. `MIN_SCALE` (0.6) is the floor.
+**Nothing is downscaled.** `resizeDrawingSurfaceToCanvas()` runs at the
+display's own pixel ratio — 2560x1440 of surface on a 1280px 2x window. An
+earlier revision traded resolution for frame rate adaptively; that is gone.
+
+Honest limit on the above: switching `Fill` → `Layout` measured 1.00–1.03x in
+this repo's test environment, which has no GPU and falls back to software GL,
+at the modest magnifications testable there. The mechanism is sound and the
+correctness win is not in doubt, but the size of the speedup on real hardware
+was not established here. If it is still not smooth, the remaining cost is in
+the `.riv` itself rather than in how it is embedded: the file carries twenty-odd
+nested artboards including three particle systems (`Particles M`, `Particles`,
+`Particle`) and `Light Fx`, all advancing every frame. Cutting particle counts
+and blur radii in the Rive editor is the lever that buys frame rate without
+costing a pixel of resolution.
 
 **Phones are blocked outright.** `isMobile()` runs before anything is fetched,
 so a phone downloads neither the runtime nor the 1.6 MB `.riv` — it gets a
 static notice instead. The gate is a coarse pointer on a screen whose short edge
 is under 820px, or any viewport with a side under 480px; tablets the size of an
 iPad Pro still get the real thing.
+
+Smaller points:
+
 - `autoBind` and `automaticallyHandleEvents` are on, so the file's data-bound
   view models and its authored Rive events drive themselves.
-- Fit is `Fill`, so the artboard covers the viewport with no letterbox bars.
-  Fill stretches, which is invisible near the artboard's own ~16:9 shape but
-  unreadable on a phone held portrait, so past `MAX_STRETCH` (35%) it falls
-  back to `Contain`. Set `MAX_STRETCH = 0` in `index.html` to always stretch.
-- The canvas tracks the real device pixel ratio and re-renders on resize and
-  rotation, which also keeps pointer hit-testing aligned with the artwork.
+- Resizing is debounced. Under `Fit.Layout` a resize re-lays out the artboard,
+  so it is not something to run on every resize event.
 - Playback pauses while the tab is hidden.
 
 Interactivity is covered by a Playwright check that hashes canvas pixels before
@@ -105,7 +113,11 @@ editor.
 To update the runtime:
 
 ```bash
-npm pack @rive-app/canvas@latest
-tar xzf rive-app-canvas-*.tgz
+npm pack @rive-app/webgl2@latest && tar xzf rive-app-webgl2-*.tgz
+cp package/rive.js package/rive.wasm package/rive_fallback.wasm vendor/rive-webgl2/
+
+npm pack @rive-app/canvas@latest && tar xzf rive-app-canvas-*.tgz
 cp package/rive.js package/rive.wasm package/rive_fallback.wasm vendor/rive/
 ```
+
+Keep the two at the same version — they share the `.riv` format.

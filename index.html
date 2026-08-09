@@ -206,23 +206,6 @@
     }
   ];
 
-  // Rendering cost scales with the number of pixels, and this artboard is heavy:
-  // twenty-odd nested artboards, particle systems and soft glows, all advancing
-  // every frame. Rather than guess one number for every machine, the surface
-  // starts inside a pixel budget and then tunes itself to the frame times it
-  // actually measures.
-  var MAX_DPR = 2;             // never exceed this, however dense the screen is
-  var PIXEL_BUDGET = 2300000;  // ≈1920x1200 — the starting surface ceiling
-  var MIN_SCALE = 0.6;         // never degrade past this, however slow it runs
-
-  var SLOW_MS = 21;            // ~48fps: below this, shed resolution
-  var FAST_MS = 15;            // ~67fps: above this, claw resolution back
-  var SAMPLE_FRAMES = 60;      // a full second at 60fps
-  var SAMPLE_MS = 1000;        // …but never wait longer than this to judge
-  var MIN_SAMPLES = 8;         // …and never judge on fewer frames than this
-
-  var qualityScale = 1;
-
   // Phones are blocked outright, so this only gates small desktop windows.
   function isMobile() {
     var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -237,12 +220,19 @@
   // would render, play "Cover" once, freeze, and never respond to input.
   var STATE_MACHINE = "State Machine 1";
 
-  // The artboard fills the viewport (Fit.Fill) rather than sitting inside
-  // letterbox bars. Fill stretches, which is imperceptible while the window is
-  // near the artboard's own ~16:9 shape but turns the UI unreadable on a phone
-  // held portrait — so past this much distortion it falls back to Contain.
-  // Set to 0 to always stretch.
-  var MAX_STRETCH = 0.35;
+  // Fit.Layout resizes the *artboard* to the canvas instead of scaling a fixed
+  // 1440x810 board up to it. Two consequences, both wanted here:
+  //
+  //   Correctness — the file's layout components reflow to the real window, so
+  //   nothing stretches and nothing sits in letterbox bars.
+  //
+  //   Cost — under Fill, a 2560px-wide window magnifies the board 1.8x, and
+  //   effect cost does not scale linearly with magnification: blur is
+  //   proportional to the square of its radius, and this design leans on large
+  //   soft glows. Under Layout the board is laid out at its authored density, so
+  //   effects cost the same at any window size. Nothing is rendered at lower
+  //   resolution to achieve that.
+  var LAYOUT_FIT = "Layout";
 
   var canvas  = document.getElementById("rive-canvas");
   var overlay = document.getElementById("overlay");
@@ -368,7 +358,7 @@
       autoBind: true,
       automaticallyHandleEvents: true,
       layout: new window.rive.Layout({
-        fit: window.rive.Fit.Fill,
+        fit: window.rive.Fit[LAYOUT_FIT],
         alignment: window.rive.Alignment.Center
       }),
       onLoad: function () {
@@ -376,30 +366,10 @@
         ensureStateMachineRunning();
         hideOverlay();
         document.body.classList.add("is-ready");
-        startAdaptiveQuality();
       },
       onLoadError: function (err) {
         showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
       }
-    });
-  }
-
-  // Stretch to fill, unless doing so would distort the artboard past MAX_STRETCH.
-  function applyFit() {
-    if (!riveInstance || !riveInstance.loaded) return;
-    var art = riveInstance.artboardWidth / riveInstance.artboardHeight;
-    var view = canvas.clientWidth / canvas.clientHeight;
-    if (!art || !view) return;
-
-    var stretch = Math.abs(view - art) / art;
-    var fit = (MAX_STRETCH && stretch > MAX_STRETCH)
-      ? window.rive.Fit.Contain
-      : window.rive.Fit.Fill;
-
-    if (riveInstance.layout.fit === fit) return;
-    riveInstance.layout = new window.rive.Layout({
-      fit: fit,
-      alignment: window.rive.Alignment.Center
     });
   }
 
@@ -414,62 +384,12 @@
   }
 
 
-  // The pixel ratio the surface is actually drawn at: the device's own ratio,
-  // clamped by MAX_DPR, by the pixel budget for this window size, and by
-  // whatever the adaptive loop has decided this machine can sustain.
-  function renderScale() {
-    var w = canvas.clientWidth || window.innerWidth;
-    var h = canvas.clientHeight || window.innerHeight;
-    var budgeted = Math.sqrt(PIXEL_BUDGET / Math.max(1, w * h));
-    var dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR, budgeted);
-    return Math.max(MIN_SCALE, dpr * qualityScale);
-  }
-
+  // Full native resolution: the surface matches the canvas at the display's own
+  // pixel ratio, with no budget and no downscaling. Under Fit.Layout this also
+  // re-lays out the artboard, so it is debounced rather than run per frame.
   function resize() {
     if (!riveInstance) return;
-    riveInstance.resizeDrawingSurfaceToCanvas(renderScale());
-    applyFit();
-  }
-
-  // Watch real frame times and trade resolution for smoothness until the frame
-  // budget is met. Steps down fast and back up slowly, with a gap between the
-  // two thresholds, so it settles instead of oscillating.
-  function startAdaptiveQuality() {
-    var samples = [];
-    var last = 0;
-    var windowStart = 0;
-
-    requestAnimationFrame(function tick(now) {
-      requestAnimationFrame(tick);
-      if (!last) { last = now; windowStart = now; return; }
-
-      samples.push(now - last);
-      last = now;
-
-      // Judge on whichever arrives first — enough frames for a stable median, or
-      // enough wall-clock that a struggling machine is not left waiting for a
-      // frame count it will not reach for ten seconds.
-      if (samples.length < MIN_SAMPLES) return;
-      if (samples.length < SAMPLE_FRAMES && now - windowStart < SAMPLE_MS) return;
-
-      var median = samples.slice().sort(function (a, b) { return a - b; })[samples.length >> 1];
-      samples.length = 0;
-      windowStart = now;
-
-      if (median > SLOW_MS && qualityScale > MIN_SCALE) {
-        // Step proportionally rather than in fixed notches: cost tracks area, so
-        // hitting the frame budget needs roughly sqrt(budget / measured) of the
-        // current linear scale. A machine four times over budget halves its
-        // resolution in one go instead of creeping down over ten seconds. The
-        // extra 0.1 guarantees forward progress when the ratio rounds to ~1.
-        var target = qualityScale * Math.sqrt(SLOW_MS / median);
-        qualityScale = Math.max(MIN_SCALE, Math.min(target, qualityScale - 0.1));
-        resize();
-      } else if (median < FAST_MS && qualityScale < 1) {
-        qualityScale = Math.min(1, qualityScale + 0.08);
-        resize();
-      }
-    });
+    riveInstance.resizeDrawingSurfaceToCanvas();
   }
 
   var resizeTimer = null;
