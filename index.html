@@ -163,9 +163,31 @@
 
   // Everything is served from this repository — no third-party requests.
   var RIV_URL = "rive/medura_project_v1.riv";
-  var RUNTIME_URL = "vendor/rive/rive.js";
-  var WASM_URL = "vendor/rive/rive.wasm";
-  var WASM_FALLBACK_URL = "vendor/rive/rive_fallback.wasm";
+
+  // The WebGL2 renderer is the one this artboard was designed against. The CPU
+  // "canvas" renderer does not blur or feather, so the soft glow behind the body
+  // renders as a hard-edged white ellipse and the organs lose their translucency
+  // — and it rasterises every pixel on the main thread, which is what made
+  // interaction feel sluggish. Canvas is kept only as a fallback for browsers
+  // without WebGL2.
+  var RENDERERS = [
+    {
+      name: "webgl2",
+      script: "vendor/rive-webgl2/rive.js",
+      wasm: "vendor/rive-webgl2/rive.wasm",
+      wasmFallback: "vendor/rive-webgl2/rive_fallback.wasm"
+    },
+    {
+      name: "canvas",
+      script: "vendor/rive/rive.js",
+      wasm: "vendor/rive/rive.wasm",
+      wasmFallback: "vendor/rive/rive_fallback.wasm"
+    }
+  ];
+
+  // Rendering cost scales with the number of pixels: an uncapped 3x phone screen
+  // is 10.5M pixels per frame versus 4.7M at 2x, for detail nobody can resolve.
+  var MAX_DPR = 2;
 
   // The interactive layer lives in this state machine on the default artboard.
   // It must be named explicitly: with neither `animations` nor `stateMachines`
@@ -219,26 +241,38 @@
     });
   }
 
-  function loadRuntime() {
+  function supportsWebGL2() {
+    try {
+      return !!document.createElement("canvas").getContext("webgl2");
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function loadRuntime(index) {
+    index = index || 0;
+    if (!index && !supportsWebGL2()) index = 1;
+
+    var renderer = RENDERERS[index];
+    if (!renderer) {
+      showError("بارگذاری موتور Rive ممکن نشد", "هیچ‌کدام از رندررهای موجود بالا نیامدند.");
+      return;
+    }
+
     var script = document.createElement("script");
-    script.src = RUNTIME_URL;
+    script.src = renderer.script;
     script.async = true;
     script.onload = function () {
-      if (!window.rive || !window.rive.Rive) {
-        showError("اجرای موتور Rive ممکن نشد", "اسکریپت بارگذاری شد اما خودش را ثبت نکرد.");
-        return;
-      }
+      if (!window.rive || !window.rive.Rive) { loadRuntime(index + 1); return; }
       // Point the runtime at the WebAssembly bundled here rather than its
       // default CDN locations.
       try {
-        window.rive.RuntimeLoader.setWasmUrl(new URL(WASM_URL, location.href).href);
-        window.rive.RuntimeLoader.wasmFallbackURL = new URL(WASM_FALLBACK_URL, location.href).href;
+        window.rive.RuntimeLoader.setWasmUrl(new URL(renderer.wasm, location.href).href);
+        window.rive.RuntimeLoader.wasmFallbackURL = new URL(renderer.wasmFallback, location.href).href;
       } catch (e) { /* older runtime: CDN defaults still apply */ }
       fetchRiv();
     };
-    script.onerror = function () {
-      showError("بارگذاری موتور Rive ممکن نشد", "دریافت فایل " + RUNTIME_URL + " ناموفق بود.");
-    };
+    script.onerror = function () { loadRuntime(index + 1); };
     document.head.appendChild(script);
   }
 
@@ -351,7 +385,7 @@
   // Keep the drawing surface matched to the CSS size and device pixel ratio.
   function resize() {
     if (!riveInstance) return;
-    riveInstance.resizeDrawingSurfaceToCanvas();
+    riveInstance.resizeDrawingSurfaceToCanvas(Math.min(window.devicePixelRatio || 1, MAX_DPR));
     applyFit();
   }
 

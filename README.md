@@ -8,7 +8,8 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | --- | --- |
 | `index.html` | The whole site: full-screen canvas, loader, Rive bootstrapping |
 | `rive/medura_project_v1.riv` | The Rive file (~1.6 MB) |
-| `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime (`rive.js` + WebAssembly) |
+| `vendor/rive-webgl2/` | Pinned `@rive-app/webgl2` 2.39.2 runtime — the renderer actually used |
+| `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime — fallback without WebGL2 |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
 
 Everything is served from this repository — the page makes no third-party
@@ -49,6 +50,20 @@ froze, and ignored every click. `stateMachines: "State Machine 1"` fixes it;
 `ensureStateMachineRunning()` falls back to whatever the artboard actually has
 if that name is changed in the editor.
 
+**The renderer must be WebGL2.** The CPU `@rive-app/canvas` renderer does not
+blur or feather: the soft glow behind the body renders as a hard-edged white
+ellipse, the organs lose their translucency, and the whole artboard reads as
+flat and posterised. Rendering the same frame through both runtimes, 16.9% of
+pixels differ by more than 6/255 — e.g. the liver samples `rgb(147,103,102)` on
+canvas against `rgb(195,166,168)` on WebGL2. It is also a main-thread
+rasteriser, so it was the source of the interaction lag. `index.html` loads
+`@rive-app/webgl2` and only falls back to the canvas build when
+`getContext("webgl2")` fails.
+
+- `MAX_DPR` caps the drawing surface at 2x. Cost scales with pixel count, and an
+  uncapped 3x screen is 10.5M pixels per frame against 4.7M at 2x. Measured on
+  the canvas renderer, dropping 3x → 1x cut median frame time from 133ms to
+  50ms; the same fill-rate arithmetic applies on the GPU.
 - `autoBind` and `automaticallyHandleEvents` are on, so the file's data-bound
   view models and its authored Rive events drive themselves.
 - Fit is `Fill`, so the artboard covers the viewport with no letterbox bars.
