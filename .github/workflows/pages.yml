@@ -27,7 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `enablement` turns Pages on for the repository on the first run, so the
+      # site does not need Settings → Pages to be toggled by hand.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # The site is plain static files, so the repository root is the artifact.
       - uses: actions/upload-pages-artifact@v3
