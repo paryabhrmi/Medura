@@ -19,7 +19,10 @@ requests, so no CDN outage, version drift, or content blocker can break it.
 
 ## Enabling GitHub Pages
 
-The deploy workflow is already committed, but Pages has to be switched on once:
+The deploy workflow is committed and runs on every push, but Pages itself has
+to be switched on once by a repository admin — the workflow's `GITHUB_TOKEN`
+cannot do it (`Resource not accessible by integration`), so `configure-pages`
+fails until this is done:
 
 1. Open **Settings → Pages** in this repository.
 2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
