@@ -60,10 +60,26 @@ rasteriser, so it was the source of the interaction lag. `index.html` loads
 `@rive-app/webgl2` and only falls back to the canvas build when
 `getContext("webgl2")` fails.
 
-- `MAX_DPR` caps the drawing surface at 2x. Cost scales with pixel count, and an
-  uncapped 3x screen is 10.5M pixels per frame against 4.7M at 2x. Measured on
-  the canvas renderer, dropping 3x → 1x cut median frame time from 133ms to
-  50ms; the same fill-rate arithmetic applies on the GPU.
+**Resolution is adaptive, because this artboard is expensive.** Twenty-odd
+nested artboards, particle systems and soft glows all advance every frame, so
+no single fixed resolution suits every machine. Three limits apply in order:
+`MAX_DPR` (2) caps dense screens, `PIXEL_BUDGET` (2.3M) caps the starting
+surface whatever the window size, and then a loop samples real frame times and
+trades resolution for smoothness until the frame budget is met.
+
+The loop steps *proportionally*: cost tracks area, so meeting the budget needs
+about `sqrt(budget / measured)` of the current linear scale, and a machine four
+times over budget halves its resolution in one window rather than creeping down
+in fixed notches. It judges on whichever comes first — 60 frames or one second —
+so a struggling machine is not left waiting for a frame count it will not reach,
+and it climbs back up in smaller steps with a gap between the two thresholds so
+it settles instead of oscillating. `MIN_SCALE` (0.6) is the floor.
+
+**Phones are blocked outright.** `isMobile()` runs before anything is fetched,
+so a phone downloads neither the runtime nor the 1.6 MB `.riv` — it gets a
+static notice instead. The gate is a coarse pointer on a screen whose short edge
+is under 820px, or any viewport with a side under 480px; tablets the size of an
+iPad Pro still get the real thing.
 - `autoBind` and `automaticallyHandleEvents` are on, so the file's data-bound
   view models and its authored Rive events drive themselves.
 - Fit is `Fill`, so the artboard covers the viewport with no letterbox bars.
@@ -73,7 +89,6 @@ rasteriser, so it was the source of the interaction lag. `index.html` loads
 - The canvas tracks the real device pixel ratio and re-renders on resize and
   rotation, which also keeps pointer hit-testing aligned with the artwork.
 - Playback pauses while the tab is hidden.
-- Portrait phones get a brief "rotate your device" hint.
 
 Interactivity is covered by a Playwright check that hashes canvas pixels before
 and after each pointer event — hover and click on the nav tabs, theme toggle,
