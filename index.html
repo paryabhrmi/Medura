@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Medura</title>
+<meta name="description" content="Medura — interactive Rive experience">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#e2e1e3">
+<meta property="og:title" content="Medura">
+<meta property="og:description" content="Medura — interactive Rive experience">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    /* Sampled from the artboard's own edge, so the letterbox bars around the
+       animation are invisible at any aspect ratio. */
+    --bg: #e2e1e3;
+    --fg: #1b1b20;
+    --muted: #63636f;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+  #rive-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: var(--bg);
+    text-align: center;
+    padding: 24px;
+    transition: opacity .45s ease, visibility .45s ease;
+  }
+  #overlay[hidden] { display: none; }
+  #overlay.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .spinner {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 3px solid rgba(0,0,0,.12);
+    border-top-color: var(--accent);
+    animation: spin 900ms linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 2.4s; }
+  }
+  .status {
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: .02em;
+    max-width: 46ch;
+    line-height: 1.7;
+  }
+  .bar {
+    width: min(280px, 70vw);
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.10);
+    overflow: hidden;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: inherit;
+    transition: width .2s ease;
+  }
+  .error-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #b42318;
+  }
+  .retry {
+    appearance: none;
+    border: 1px solid rgba(0,0,0,.20);
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 14px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .retry:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* The artboard is a wide desktop layout, so portrait phones get a nudge. */
+  #rotate {
+    position: fixed;
+    left: 50%;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: rgba(20,20,26,.86);
+    color: #fff;
+    font-size: 13px;
+    white-space: nowrap;
+    box-shadow: 0 6px 22px rgba(0,0,0,.24);
+    transition: opacity .4s ease;
+  }
+  #rotate.is-gone { opacity: 0; pointer-events: none; }
+  #rotate svg { flex: none; }
+  @media (orientation: portrait) and (max-width: 900px) {
+    body.is-ready #rotate { display: flex; }
+  }
+</style>
+</head>
+<body>
+  <main id="stage">
+    <canvas id="rive-canvas"></canvas>
+  </main>
+
+  <div id="overlay" role="status" aria-live="polite">
+    <div class="spinner" id="spinner"></div>
+    <div class="bar" id="bar"><i></i></div>
+    <p class="status" id="status">در حال بارگذاری…</p>
+  </div>
+
+  <div id="rotate" class="is-gone">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="7" width="18" height="10" rx="2"></rect>
+      <path d="M8 3.2a9 9 0 0 1 8 0"></path>
+    </svg>
+    <span>برای نمای کامل، دستگاه را بچرخانید</span>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Everything is served from this repository — no third-party requests.
+  var RIV_URL = "rive/medura_project_v1.riv";
+  var RUNTIME_URL = "vendor/rive/rive.js";
+  var WASM_URL = "vendor/rive/rive.wasm";
+  var WASM_FALLBACK_URL = "vendor/rive/rive_fallback.wasm";
+
+  var canvas  = document.getElementById("rive-canvas");
+  var overlay = document.getElementById("overlay");
+  var spinner = document.getElementById("spinner");
+  var statusEl = document.getElementById("status");
+  var bar = document.getElementById("bar");
+  var barFill = bar.firstElementChild;
+
+  var riveInstance = null;
+
+  function setStatus(text) { statusEl.textContent = text; }
+
+  function setProgress(fraction) {
+    if (fraction == null) { bar.style.display = "none"; return; }
+    bar.style.display = "";
+    barFill.style.width = Math.max(0, Math.min(1, fraction)) * 100 + "%";
+  }
+
+  function hideOverlay() {
+    overlay.classList.add("is-hidden");
+    setTimeout(function () { overlay.hidden = true; }, 500);
+  }
+
+  function showError(title, detail) {
+    overlay.hidden = false;
+    overlay.classList.remove("is-hidden");
+    spinner.style.display = "none";
+    bar.style.display = "none";
+    overlay.innerHTML =
+      '<p class="error-title"></p>' +
+      '<p class="status"></p>' +
+      '<button class="retry" type="button">تلاش دوباره</button>';
+    overlay.querySelector(".error-title").textContent = title;
+    overlay.querySelector(".status").textContent = detail;
+    overlay.querySelector(".retry").addEventListener("click", function () {
+      location.reload();
+    });
+  }
+
+  function loadRuntime() {
+    var script = document.createElement("script");
+    script.src = RUNTIME_URL;
+    script.async = true;
+    script.onload = function () {
+      if (!window.rive || !window.rive.Rive) {
+        showError("اجرای موتور Rive ممکن نشد", "اسکریپت بارگذاری شد اما خودش را ثبت نکرد.");
+        return;
+      }
+      // Point the runtime at the WebAssembly bundled here rather than its
+      // default CDN locations.
+      try {
+        window.rive.RuntimeLoader.setWasmUrl(new URL(WASM_URL, location.href).href);
+        window.rive.RuntimeLoader.wasmFallbackURL = new URL(WASM_FALLBACK_URL, location.href).href;
+      } catch (e) { /* older runtime: CDN defaults still apply */ }
+      fetchRiv();
+    };
+    script.onerror = function () {
+      showError("بارگذاری موتور Rive ممکن نشد", "دریافت فایل " + RUNTIME_URL + " ناموفق بود.");
+    };
+    document.head.appendChild(script);
+  }
+
+  // Fetch the .riv ourselves so we can report download progress.
+  function fetchRiv() {
+    setStatus("در حال دریافت انیمیشن…");
+    fetch(RIV_URL, { cache: "force-cache" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        var total = Number(response.headers.get("content-length")) || 0;
+        if (!response.body || !total) { setProgress(null); return response.arrayBuffer(); }
+
+        var reader = response.body.getReader();
+        var chunks = [];
+        var received = 0;
+        return (function pump() {
+          return reader.read().then(function (result) {
+            if (result.done) {
+              var merged = new Uint8Array(received);
+              var offset = 0;
+              for (var i = 0; i < chunks.length; i++) {
+                merged.set(chunks[i], offset);
+                offset += chunks[i].length;
+              }
+              return merged.buffer;
+            }
+            chunks.push(result.value);
+            received += result.value.length;
+            setProgress(received / total);
+            return pump();
+          });
+        })();
+      })
+      .then(startRive)
+      .catch(function (err) {
+        showError("بارگذاری فایل انیمیشن ممکن نشد", String(err && err.message ? err.message : err));
+      });
+  }
+
+  function startRive(buffer) {
+    setProgress(null);
+    setStatus("در حال اجرا…");
+
+    riveInstance = new window.rive.Rive({
+      buffer: buffer,
+      canvas: canvas,
+      autoplay: true,
+      // Omitting `artboard`/`stateMachines` names lets Rive pick the file's
+      // defaults, which keeps this working if the artboard is renamed.
+      autoBind: true,
+      layout: new window.rive.Layout({
+        fit: window.rive.Fit.Contain,
+        alignment: window.rive.Alignment.Center
+      }),
+      onLoad: function () {
+        resize();
+        hideOverlay();
+        document.body.classList.add("is-ready");
+        showRotateHint();
+      },
+      onLoadError: function (err) {
+        showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
+      }
+    });
+
+    // A state machine may exist without being auto-detected on some builds.
+    riveInstance.on("load", function () {
+      try {
+        var machines = riveInstance.stateMachineNames || [];
+        if (machines.length && !riveInstance.isPlaying) {
+          riveInstance.play(machines[0]);
+        }
+      } catch (e) { /* default playback already running */ }
+    });
+  }
+
+  // The hint is CSS-gated to portrait phones; this only handles its timing.
+  var rotateTimer = null;
+  function showRotateHint() {
+    var hint = document.getElementById("rotate");
+    if (!hint) return;
+    hint.classList.remove("is-gone");
+    clearTimeout(rotateTimer);
+    rotateTimer = setTimeout(function () { hint.classList.add("is-gone"); }, 5000);
+  }
+
+  // Keep the drawing surface matched to the CSS size and device pixel ratio.
+  function resize() {
+    if (!riveInstance) return;
+    riveInstance.resizeDrawingSurfaceToCanvas();
+  }
+
+  var resizeTimer = null;
+  function scheduleResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 80);
+  }
+
+  window.addEventListener("resize", scheduleResize);
+  window.addEventListener("orientationchange", scheduleResize);
+  if (window.ResizeObserver) {
+    new ResizeObserver(scheduleResize).observe(document.getElementById("stage"));
+  }
+
+  // Pause while the tab is hidden so we do not burn battery in the background.
+  document.addEventListener("visibilitychange", function () {
+    if (!riveInstance) return;
+    try {
+      if (document.hidden) riveInstance.pause();
+      else riveInstance.play();
+    } catch (e) { /* instance not ready */ }
+  });
+
+  loadRuntime();
+})();
+</script>
+</body>
+</html>
