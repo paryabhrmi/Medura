@@ -14,9 +14,8 @@ The artwork and copy make a few assumptions. Correct them before publishing:
 | Where | Assumption |
 | --- | --- |
 | `build-assets.py` → `HEADER` | The name reads **PARYA BAHRAMI**, taken from `paryabahrami.ir`. If that is not how you spell it, change the two `<text>` lines — and adjust `textLength` (`300` and `430`) so the width still matches the accent rule beneath and the cursor block after it. |
-| `README.md` → Selected work | The `git-for-designers` description is written from the repo name alone. Rewrite it in one line. |
 | `README.md` → Toolkit | Trim anything you would not want to be asked about in an interview. |
-| `README.md` → Elsewhere | Add email, LinkedIn, Dribbble, Bluesky — whatever you actually want reachable. |
+| `README.md` → Elsewhere | Site, LinkedIn and GitHub are in. Add email, Dribbble or Bluesky if you want them reachable. |
 
 ## Publish
 
