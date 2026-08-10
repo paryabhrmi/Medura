@@ -112,8 +112,8 @@
   }
   .retry:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Phones and small tablets get this instead of the artboard: it is a wide
-     desktop layout that needs a pointer, and the .riv is never fetched. */
+  /* Fallback only. The artboard carries its own mobile copy now, so this is
+     reached solely when the file has no `desktop` property to switch on. */
   #blocked {
     position: fixed;
     inset: 0;
@@ -184,11 +184,8 @@
       <rect x="2" y="4" width="20" height="13" rx="2"></rect>
       <path d="M8 20h8M12 17v3"></path>
     </svg>
-    <h1>این نسخه روی موبایل اجرا نمی‌شود</h1>
-    <p>
-      Medura یک پروتوتایپ دسکتاپ است و به صفحهٔ عریض و ماوس نیاز دارد.
-      لطفاً روی کامپیوتر بازش کنید.
-    </p>
+    <h1>به مدورا خوش آمدید</h1>
+    <p>مدورا به نمایشگر بزرگ و ماوس نیاز دارد؛ روی کامپیوتر بازش کنید.</p>
     <code>paryabhrmi.github.io/Medura</code>
   </div>
 
@@ -197,7 +194,7 @@
   "use strict";
 
   // Everything is served from this repository — no third-party requests.
-  var RIV_URL = "rive/medura_project_v1.riv";
+  var RIV_URL = "rive/medura_project_v2.riv";
 
   // The WebGL2 renderer is the one this artboard was designed against. The CPU
   // "canvas" renderer does not blur or feather, so the soft glow behind the body
@@ -220,11 +217,16 @@
     }
   ];
 
-  // Phones are blocked outright, so this only gates small desktop windows.
-  function isMobile() {
-    var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-    var shortEdge = Math.min(window.screen.width, window.screen.height);
-    return (coarse && shortEdge < 820) || Math.min(window.innerWidth, window.innerHeight) < 480;
+  // The artboard holds both sets of onboarding copy and picks between them from
+  // this boolean on its view model, so the job here is to classify the device
+  // rather than to block it. Desktop means a real pointing device and a window
+  // wide enough for the layout; every phone and tablet falls to the other side.
+  var DESKTOP_FLAG = "desktop";
+  var MIN_DESKTOP_WIDTH = 800;
+
+  function isDesktop() {
+    var finePointer = !window.matchMedia || window.matchMedia("(pointer: fine)").matches;
+    return finePointer && window.innerWidth >= MIN_DESKTOP_WIDTH;
   }
 
   // The interactive layer lives in this state machine on the default artboard.
@@ -381,6 +383,10 @@
       onLoad: function () {
         resize();
         ensureStateMachineRunning();
+        if (!applyDesktopFlag() && !isDesktop()) {
+          // The file cannot switch copy itself — show the static notice instead.
+          document.body.classList.add("is-blocked");
+        }
         hideOverlay();
         document.body.classList.add("is-ready");
         if (PERF) startPerfHud();
@@ -389,6 +395,22 @@
         showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
       }
     });
+  }
+
+  // Tell the artboard which copy to show. autoBind has already bound the file's
+  // default view model, so the property is reachable straight off the instance.
+  // Returns false when the file has no such property, which is the signal to
+  // fall back to the HTML notice.
+  function applyDesktopFlag() {
+    try {
+      var vmi = riveInstance && riveInstance.viewModelInstance;
+      var prop = vmi && vmi.boolean(DESKTOP_FLAG);
+      if (!prop) return false;
+      prop.value = isDesktop();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Guards against STATE_MACHINE being renamed in the Rive editor: if the named
@@ -408,6 +430,7 @@
   function resize() {
     if (!riveInstance) return;
     riveInstance.resizeDrawingSurfaceToCanvas();
+    applyDesktopFlag();
   }
 
   var resizeTimer = null;
@@ -465,12 +488,7 @@
     } catch (e) { /* instance not ready */ }
   });
 
-  if (isMobile()) {
-    // Bail before any runtime or the 1.6 MB .riv is fetched.
-    document.body.classList.add("is-blocked");
-  } else {
-    loadRuntime();
-  }
+  loadRuntime();
 })();
 </script>
 </body>

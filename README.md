@@ -7,7 +7,7 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | Path | Purpose |
 | --- | --- |
 | `index.html` | The whole site: full-screen canvas, loader, Rive bootstrapping |
-| `rive/medura_project_v1.riv` | The Rive file (~1.6 MB) |
+| `rive/medura_project_v2.riv` | The Rive file (~2.6 MB) |
 | `vendor/rive-webgl2/` | Pinned `@rive-app/webgl2` 2.39.2 runtime — the renderer actually used |
 | `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime — fallback without WebGL2 |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
@@ -146,11 +146,28 @@ Numbers come from a software renderer, so treat them as ratios rather than
 milliseconds; the expensive artboards also yield few frames per sample, so
 their absolute values are noisy while the ranking is stable.
 
-**Phones are blocked outright.** `isMobile()` runs before anything is fetched,
-so a phone downloads neither the runtime nor the 1.6 MB `.riv` — it gets a
-static notice instead. The gate is a coarse pointer on a screen whose short edge
-is under 820px, or any viewport with a side under 480px; tablets the size of an
-iPad Pro still get the real thing.
+**Device copy is switched inside the artboard, not by blocking.** The file
+carries both the desktop and the mobile/tablet onboarding text and picks between
+them from a `desktop` boolean on its view model, so `index.html` classifies the
+device and sets the flag rather than refusing to load:
+
+```js
+riveInstance.viewModelInstance.boolean("desktop").value = isDesktop();
+```
+
+`isDesktop()` is a fine pointer plus a window at least 800px wide, so phones and
+tablets alike land on `false` — verified on iPhone 13 (390px, coarse) and iPad
+Pro 11 (834px, coarse) against a 1280px desktop. It is re-applied on resize, so
+dragging a window across the threshold switches the copy live. `autoBind`
+already binds the file's default view model, so the property is reachable
+straight off the instance — note it lives on `Inputs and variables`, the only
+view model in the file, not on a separate one.
+
+The `#blocked` markup survives purely as a fallback for a `.riv` without that
+property. One consequence worth naming: a phone now downloads the full 2.6 MB
+file to show a message telling it to switch to a desktop, where the previous
+build fetched nothing at all. That is the cost of having the copy live in the
+artboard.
 
 Smaller points:
 
