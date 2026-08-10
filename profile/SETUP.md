@@ -1,5 +1,13 @@
 # Putting this on your profile
 
+> **Current state.** `README.md` here is the long-form, prose-first version —
+> the one modelled on how senior design technologists write their profiles. It
+> references no images. The SVG artwork in `assets/` and its generator
+> `build-assets.py` belong to the earlier graphic-header direction; they are
+> kept because that direction is still available, not because the current
+> README uses them.
+
+
 A GitHub profile README only renders from one specific place: a **public
 repository named exactly after your username**, with a `README.md` at its root.
 For you that is `paryabhrmi/paryabhrmi` — it does not exist yet.
