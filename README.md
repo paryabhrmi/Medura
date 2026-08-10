@@ -112,6 +112,36 @@ cost.
 guess, and measuring refuted it. Effort belongs on `ArtboardMaster` and the
 three page artboards.
 
+### What was tried on the embedding side
+
+Every knob the runtime exposes was measured against `ArtboardMaster`, rather
+than reasoned about. Two of them paid, and both are applied:
+
+| Change | Result |
+| --- | --- |
+| WebGL2 renderer instead of canvas | applied — and fixes the colours |
+| `Fit.Layout` instead of `Fit.Contain` | **1.18x faster** — applied |
+| `autoBind: true` instead of `false` | **3x faster** — applied |
+| `automaticallyHandleEvents: false` | no change |
+| `useOffscreenRenderer: false` | no change |
+| `shouldDisableRiveListeners: true` | no change |
+| Skip rendering while idle | impossible — the scene never settles |
+| Render in a worker via OffscreenCanvas | impossible — no API to inject pointer events, so interaction would break |
+| Coalescing pointer events | pointless — 0, 8 and 40 `pointermove` per frame all cost the same |
+
+`autoBind` is the surprising one: unbinding the view model made it *three times
+slower*, so the file's `Inputs and variables` view model is doing real work
+deciding what is active. Leave it on.
+
+The embedding has nothing left to give. The remaining cost is in the `.riv`.
+
+### Measuring your own edits
+
+Append `?perf` to the URL for a live HUD — frame rate, median and p95 frame
+time, surface size, artboard size and which renderer won. It is not created at
+all without the flag, so it costs nothing in normal use. Use it to see whether
+an edit in the Rive editor actually bought anything.
+
 Numbers come from a software renderer, so treat them as ratios rather than
 milliseconds; the expensive artboards also yield few frames per sample, so
 their absolute values are noisy while the ranking is stable.

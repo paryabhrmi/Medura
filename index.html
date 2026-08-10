@@ -143,6 +143,20 @@
     line-height: 1.9;
     color: var(--muted);
   }
+  #perf {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    padding: 6px 11px;
+    border-radius: 7px;
+    background: rgba(16,16,22,.82);
+    color: #d8f5c8;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: nowrap;
+    direction: ltr;
+    pointer-events: none;
+  }
   #blocked code {
     font-size: 13px;
     background: rgba(0,0,0,.06);
@@ -242,6 +256,8 @@
   var barFill = bar.firstElementChild;
 
   var riveInstance = null;
+  var RENDERER_USED = "";
+  var PERF = /(^|[?&])perf(=|&|$)/.test(location.search);
 
   function setStatus(text) { statusEl.textContent = text; }
 
@@ -295,6 +311,7 @@
     script.async = true;
     script.onload = function () {
       if (!window.rive || !window.rive.Rive) { loadRuntime(index + 1); return; }
+      RENDERER_USED = renderer.name;
       // Point the runtime at the WebAssembly bundled here rather than its
       // default CDN locations.
       try {
@@ -366,6 +383,7 @@
         ensureStateMachineRunning();
         hideOverlay();
         document.body.classList.add("is-ready");
+        if (PERF) startPerfHud();
       },
       onLoadError: function (err) {
         showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
@@ -402,6 +420,40 @@
   window.addEventListener("orientationchange", scheduleResize);
   if (window.ResizeObserver) {
     new ResizeObserver(scheduleResize).observe(document.getElementById("stage"));
+  }
+
+  // Opt-in perf HUD: append ?perf to the URL. Costs nothing when it is off, and
+  // the next round of optimisation is in the .riv rather than in here, so this
+  // is what makes the effect of an edit in the Rive editor visible immediately.
+  function startPerfHud() {
+    var hud = document.createElement("div");
+    hud.id = "perf";
+    document.body.appendChild(hud);
+
+    var samples = [];
+    var last = 0;
+    var painted = 0;
+
+    requestAnimationFrame(function tick(now) {
+      requestAnimationFrame(tick);
+      if (!last) { last = now; return; }
+      samples.push(now - last);
+      last = now;
+      if (samples.length < 20 && now - painted < 500) return;
+
+      var sorted = samples.slice().sort(function (a, b) { return a - b; });
+      var median = sorted[sorted.length >> 1];
+      var p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+      samples.length = 0;
+      painted = now;
+
+      hud.textContent =
+        Math.round(1000 / median) + " fps   " +
+        median.toFixed(1) + " ms (p95 " + p95.toFixed(0) + ")   " +
+        canvas.width + "×" + canvas.height + " @" + (window.devicePixelRatio || 1) + "x   " +
+        (riveInstance ? Math.round(riveInstance.artboardWidth) + "×" + Math.round(riveInstance.artboardHeight) : "?") +
+        " board   " + RENDERER_USED;
+    });
   }
 
   // Pause while the tab is hidden so we do not burn battery in the background.
