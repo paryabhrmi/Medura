@@ -11,6 +11,7 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | `vendor/rive-webgl2/` | Pinned `@rive-app/webgl2` 2.39.2 runtime — the renderer actually used |
 | `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime — fallback without WebGL2 |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
+| `vercel.json` | Cache headers, if the site is served from Vercel instead |
 
 Everything is served from this repository — the page makes no third-party
 requests, so no CDN outage, version drift, or content blocker can break it.
@@ -28,6 +29,34 @@ this repository are exactly what is served.
 
 `.nojekyll` matters here: without it Pages would run Jekyll, which excludes
 `vendor/` from its output by default and would leave the Rive runtime 404ing.
+
+### Serving from Vercel instead
+
+The site is static with no build step, so Vercel needs no configuration beyond
+importing the repository — framework preset *Other*, root directory `./`, build
+command empty.
+
+`vercel.json` is there for the one thing GitHub Pages cannot do: set cache
+headers. `rive/` and `vendor/` are marked immutable for a year, `index.html`
+must-revalidate so a deploy takes effect at once. That matters here because a
+first visit pulls a 2.6 MB `.riv` and a 2.5 MB `.wasm`; on a repeat visit both
+come from cache instead of the network. Vercel also serves Brotli, which GitHub
+Pages does not — the WebAssembly compresses well under it.
+
+The immutable headers assume filenames change when contents do. The `.riv` has
+its version in the name; the vendored runtime does not, so rename it or append
+`?v=` in `index.html` when you upgrade it, or returning visitors will keep the
+old copy for a year.
+
+For a custom domain: add it under the project's **Settings → Domains**, then
+point DNS at Vercel — a `CNAME` to `cname.vercel-dns.com` for a subdomain such
+as `app.medura.…`, or the `A` record Vercel shows you for a bare apex domain.
+HTTPS is issued automatically. The domain has to be one you already own;
+Vercel's free tier allows custom domains but its terms are for
+non-commercial use.
+
+Both hosts can run at once — Pages from the branch, Vercel from the same repo —
+which is a cheap way to compare them before moving the domain.
 
 ## Running locally
 
