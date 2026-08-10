@@ -74,15 +74,47 @@ display's own pixel ratio — 2560x1440 of surface on a 1280px 2x window. An
 earlier revision traded resolution for frame rate adaptively; that is gone.
 
 Honest limit on the above: switching `Fill` → `Layout` measured 1.00–1.03x in
-this repo's test environment, which has no GPU and falls back to software GL,
-at the modest magnifications testable there. The mechanism is sound and the
-correctness win is not in doubt, but the size of the speedup on real hardware
-was not established here. If it is still not smooth, the remaining cost is in
-the `.riv` itself rather than in how it is embedded: the file carries twenty-odd
-nested artboards including three particle systems (`Particles M`, `Particles`,
-`Particle`) and `Light Fx`, all advancing every frame. Cutting particle counts
-and blur radii in the Rive editor is the lever that buys frame rate without
-costing a pixel of resolution.
+this repo's test environment, which has no GPU and falls back to software GL.
+The correctness win is not in doubt; the size of any speedup is not established.
+
+## Where the frame time goes
+
+Each of the file's 71 artboards was instantiated on its own with its state
+machine running, and its median frame delta measured — first at 640x360, then
+at 160x90, so that cost which tracks pixel count (rasterising: effects, blur,
+overdraw) separates from cost which does not (advancing the scene graph).
+
+Ranked, heaviest first — everything not listed sat on the 60fps floor:
+
+| Artboard | 640x360 | 160x90 |
+| --- | --- | --- |
+| `ArtboardMaster` | ~1400 ms | ~483 ms |
+| `TimeLine Page` | 1433 ms | 867 ms |
+| `Timeline New` | 850 ms | 383 ms |
+| `Overview Page` | 633 ms | 533 ms |
+| `Human Anatomy 01` | 450 ms | 217 ms |
+| `Card 6`, `TL-3 2`, `Organs/Liver`, `Card 5` | 367–467 ms | 100–233 ms |
+| `Organs Page`, `TL-1`, `Organs Table 2`, `Card 2` | 283–333 ms | — |
+
+Two things follow.
+
+**`ArtboardMaster` dominates, and its cost splits in two.** Sweeping it across
+four canvas sizes gives roughly a fixed ~420 ms per frame plus ~4.3 µs per
+pixel. The fixed half is scene-graph work and does not shrink when you lower
+the resolution — which is why capping the pixel ratio never made it feel
+smooth. The per-pixel half is invisible on a small canvas and dominant at
+full-screen, where it is what a large soft glow and stacked translucent layers
+cost.
+
+**The particle systems are not the problem.** `Particles`, `Particle`,
+`Particles M` and `Light Fx` all measured at or near the idle floor
+(0.07 µs/px). An earlier revision of this file said to cut them; that was a
+guess, and measuring refuted it. Effort belongs on `ArtboardMaster` and the
+three page artboards.
+
+Numbers come from a software renderer, so treat them as ratios rather than
+milliseconds; the expensive artboards also yield few frames per sample, so
+their absolute values are noisy while the ranking is stable.
 
 **Phones are blocked outright.** `isMobile()` runs before anything is fetched,
 so a phone downloads neither the runtime nor the 1.6 MB `.riv` — it gets a
