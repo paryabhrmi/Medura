@@ -112,8 +112,8 @@
   }
   .retry:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Fallback only. The artboard carries its own mobile copy now, so this is
-     reached solely when the file has no `desktop` property to switch on. */
+  /* Shown instead of the experience on anything that is not a desktop. The
+     animation is never loaded in that case, so this is the whole page there. */
   #blocked {
     position: fixed;
     inset: 0;
@@ -185,8 +185,9 @@
       <path d="M8 20h8M12 17v3"></path>
     </svg>
     <h1>به مدورا خوش آمدید</h1>
-    <p>مدورا به نمایشگر بزرگ و ماوس نیاز دارد؛ روی کامپیوتر بازش کنید.</p>
-    <code>paryabhrmi.github.io/Medura</code>
+    <p>مدورا به نمایشگر بزرگ و ماوس نیاز دارد و روی موبایل اجرا نمی‌شود؛ این نشانی را روی کامپیوتر باز کنید.</p>
+    <code id="blocked-url">medura-fa.vercel.app</code>
+    <button class="retry" type="button" id="copy-url">کپی نشانی</button>
   </div>
 
 <script>
@@ -217,10 +218,13 @@
     }
   ];
 
-  // The artboard holds both sets of onboarding copy and picks between them from
-  // this boolean on its view model, so the job here is to classify the device
-  // rather than to block it. Desktop means a real pointing device and a window
-  // wide enough for the layout; every phone and tablet falls to the other side.
+  // The experience is desktop-only: on anything else the runtime and the .riv
+  // are never fetched at all and the static notice below takes over the page.
+  // Desktop means a real pointing device and a window wide enough for the
+  // layout; every phone and tablet falls to the other side.
+  //
+  // The flag is still pushed to the artboard, which carries its own copy for
+  // both cases — it just never sees `false` while it is on screen.
   var DESKTOP_FLAG = "desktop";
   var MIN_DESKTOP_WIDTH = 800;
 
@@ -258,6 +262,7 @@
   var barFill = bar.firstElementChild;
 
   var riveInstance = null;
+  var runtimeRequested = false;
   var RENDERER_USED = "";
   var PERF = /(^|[?&])perf(=|&|$)/.test(location.search);
 
@@ -383,10 +388,7 @@
       onLoad: function () {
         resize();
         ensureStateMachineRunning();
-        if (!applyDesktopFlag() && !isDesktop()) {
-          // The file cannot switch copy itself — show the static notice instead.
-          document.body.classList.add("is-blocked");
-        }
+        applyDesktopFlag();
         hideOverlay();
         document.body.classList.add("is-ready");
         if (PERF) startPerfHud();
@@ -395,6 +397,30 @@
         showError("راه‌اندازی انیمیشن ناموفق بود", String(err || "خطای نامشخص Rive"));
       }
     });
+  }
+
+  // The single place that decides whether the experience runs. Called on start
+  // and on every resize/orientation change, so a window dragged below the
+  // desktop threshold (or a phone rotated) lands on the notice, and going back
+  // the other way starts the experience — loading it the first time it is
+  // reached, resuming it afterwards.
+  function applyDeviceGate() {
+    var desktop = isDesktop();
+    if (desktop) {
+      document.body.classList.remove("is-blocked");
+      if (!runtimeRequested) {
+        runtimeRequested = true;
+        loadRuntime();
+      } else if (riveInstance && !document.hidden) {
+        try { riveInstance.play(); } catch (e) { /* instance not ready */ }
+      }
+    } else {
+      document.body.classList.add("is-blocked");
+      if (riveInstance) {
+        try { riveInstance.pause(); } catch (e) { /* instance not ready */ }
+      }
+    }
+    return desktop;
   }
 
   // Tell the artboard which copy to show. autoBind has already bound the file's
@@ -436,7 +462,10 @@
   var resizeTimer = null;
   function scheduleResize() {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(resize, 80);
+    resizeTimer = setTimeout(function () {
+      applyDeviceGate();
+      resize();
+    }, 80);
   }
 
   window.addEventListener("resize", scheduleResize);
@@ -484,11 +513,30 @@
     if (!riveInstance) return;
     try {
       if (document.hidden) riveInstance.pause();
-      else riveInstance.play();
+      else if (isDesktop()) riveInstance.play();
     } catch (e) { /* instance not ready */ }
   });
 
-  loadRuntime();
+  // Show the address the visitor is actually on, so it can be typed or pasted
+  // into a desktop browser. The markup carries the canonical host as fallback.
+  (function setUpBlockedNotice() {
+    var url = location.origin + location.pathname.replace(/index\.html$/, "");
+    document.getElementById("blocked-url").textContent =
+      url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+    var copy = document.getElementById("copy-url");
+    copy.addEventListener("click", function () {
+      var done = function () {
+        copy.textContent = "کپی شد";
+        setTimeout(function () { copy.textContent = "کپی نشانی"; }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done, function () {});
+      }
+    });
+  })();
+
+  applyDeviceGate();
 })();
 </script>
 </body>

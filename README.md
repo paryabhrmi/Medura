@@ -175,28 +175,34 @@ Numbers come from a software renderer, so treat them as ratios rather than
 milliseconds; the expensive artboards also yield few frames per sample, so
 their absolute values are noisy while the ranking is stable.
 
-**Device copy is switched inside the artboard, not by blocking.** The file
-carries both the desktop and the mobile/tablet onboarding text and picks between
-them from a `desktop` boolean on its view model, so `index.html` classifies the
-device and sets the flag rather than refusing to load:
+**The experience is desktop-only; mobile gets a notice pointing at the
+desktop.** `applyDeviceGate()` in `index.html` is the single decision point. On
+anything that is not a desktop it puts `is-blocked` on the body — which hides
+the stage and the loading overlay and shows the `#blocked` panel — and neither
+the Rive runtime nor the 2.6 MB `.riv` is ever requested, so a phone downloads
+kilobytes rather than megabytes to be told to switch devices. The panel shows
+the address the visitor is on (read from `location`, with the canonical host as
+static fallback) plus a button that copies it to the clipboard.
+
+`isDesktop()` is a fine pointer plus a window at least 800px wide, so phones and
+tablets alike land on `false` — verified on iPhone 13 (390px, coarse) and iPad
+Pro 11 (834px, coarse) against a 1280px desktop. The gate re-runs on the
+debounced resize/orientation handler, so dragging a window below the threshold
+swaps to the notice and pauses playback, and dragging it back either resumes the
+instance or loads the runtime for the first time if that window never qualified
+before.
+
+The artboard still carries copy for both cases and is still told which to use
+via a `desktop` boolean on its view model:
 
 ```js
 riveInstance.viewModelInstance.boolean("desktop").value = isDesktop();
 ```
 
-`isDesktop()` is a fine pointer plus a window at least 800px wide, so phones and
-tablets alike land on `false` — verified on iPhone 13 (390px, coarse) and iPad
-Pro 11 (834px, coarse) against a 1280px desktop. It is re-applied on resize, so
-dragging a window across the threshold switches the copy live. `autoBind`
-already binds the file's default view model, so the property is reachable
-straight off the instance — note it lives on `Inputs and variables`, the only
-view model in the file, not on a separate one.
-
-The `#blocked` markup survives purely as a fallback for a `.riv` without that
-property. One consequence worth naming: a phone now downloads the full 2.6 MB
-file to show a message telling it to switch to a desktop, where the previous
-build fetched nothing at all. That is the cost of having the copy live in the
-artboard.
+It just never sees `false` while it is on screen. `autoBind` already binds the
+file's default view model, so the property is reachable straight off the
+instance — note it lives on `Inputs and variables`, the only view model in the
+file, not on a separate one.
 
 Smaller points:
 
