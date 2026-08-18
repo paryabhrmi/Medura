@@ -10,7 +10,34 @@
 <meta property="og:title" content="Medura">
 <meta property="og:description" content="Medura — interactive Rive experience">
 <meta property="og:type" content="website">
+<link rel="preload" href="fonts/yekan-bakh-vf.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  /* Both faces are the ones the artboard itself is set in, lifted out of the
+     .riv and subsetted to Persian + Latin so the HTML around the animation —
+     the loader, the errors, the desktop-only notice — is set in the same
+     typography rather than in whatever sans-serif the device defaults to.
+     Yekan Bakh carries the Persian copy, Space Grotesk the Latin, matching the
+     artboard's own split. Both are variable, so one file covers every weight.
+
+     Yekan Bakh's own defaults are Thin ExtraCondensed, so weight and width are
+     always stated rather than left to the axis defaults. */
+  @font-face {
+    font-family: "Yekan Bakh";
+    src: url("fonts/yekan-bakh-vf.woff2") format("woff2-variations"),
+         url("fonts/yekan-bakh-vf.woff2") format("woff2");
+    font-weight: 100 950;
+    font-stretch: 62.5% 150%;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("fonts/space-grotesk-vf.woff2") format("woff2-variations"),
+         url("fonts/space-grotesk-vf.woff2") format("woff2");
+    font-weight: 300 700;
+    font-style: normal;
+    font-display: swap;
+  }
   :root {
     /* Sampled from the artboard's own edge, so the letterbox bars around the
        animation are invisible at any aspect ratio. */
@@ -18,6 +45,8 @@
     --fg: #1b1b20;
     --muted: #63636f;
     --accent: #2563eb;
+    --font-fa: "Yekan Bakh", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+    --font-latin: "Space Grotesk", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -26,7 +55,11 @@
     height: 100%;
     background: var(--bg);
     color: var(--fg);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-fa);
+    /* The artboard sets even its body copy bold — nothing in this design is
+       lighter than 700 — so that is the baseline here too. */
+    font-weight: 700;
+    font-stretch: 100%;
     overflow: hidden;
     overscroll-behavior: none;
   }
@@ -75,9 +108,8 @@
   .status {
     font-size: 14px;
     color: var(--muted);
-    letter-spacing: .02em;
     max-width: 46ch;
-    line-height: 1.7;
+    line-height: 1.8;
   }
   .bar {
     width: min(280px, 70vw);
@@ -96,7 +128,7 @@
   }
   .error-title {
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 800;
     color: #b42318;
   }
   .retry {
@@ -106,6 +138,7 @@
     color: var(--fg);
     font: inherit;
     font-size: 14px;
+    font-weight: 700;
     padding: 9px 18px;
     border-radius: 999px;
     cursor: pointer;
@@ -132,8 +165,10 @@
   #blocked svg { color: var(--accent); }
   #blocked h1 {
     margin: 0;
-    font-size: 19px;
-    font-weight: 600;
+    font-size: 21px;
+    /* The artboard's headings sit at ExtraBold; matching it is what makes this
+       screen read as the same product as the one behind it. */
+    font-weight: 800;
     line-height: 1.6;
   }
   #blocked p {
@@ -152,15 +187,20 @@
     border-radius: 7px;
     background: rgba(16,16,22,.82);
     color: #d8f5c8;
-    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 500 12px/1.5 var(--font-latin);
     white-space: nowrap;
     direction: ltr;
     pointer-events: none;
   }
   #blocked code {
+    /* The Latin face the artboard uses for its own Latin lockup, so the address
+       is set the same way the header's "Prototype V1.0" is. */
+    font-family: var(--font-latin);
+    font-weight: 500;
     font-size: 13px;
+    letter-spacing: .01em;
     background: rgba(0,0,0,.06);
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 6px;
     direction: ltr;
     display: inline-block;

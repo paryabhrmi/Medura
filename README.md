@@ -10,6 +10,7 @@ An interactive [Rive](https://rive.app) prototype published as a static site on 
 | `rive/medura_project_v2.riv` | The Rive file (~2.6 MB) |
 | `vendor/rive-webgl2/` | Pinned `@rive-app/webgl2` 2.39.2 runtime — the renderer actually used |
 | `vendor/rive/` | Pinned `@rive-app/canvas` 2.39.2 runtime — fallback without WebGL2 |
+| `fonts/` | Yekan Bakh VF and Space Grotesk, subsetted out of the `.riv` for the HTML layer |
 | `.nojekyll` | Stops Pages from running Jekyll over the files |
 | `vercel.json` | Cache headers, if the site is served from Vercel instead |
 
@@ -203,6 +204,32 @@ It just never sees `false` while it is on screen. `autoBind` already binds the
 file's default view model, so the property is reachable straight off the
 instance — note it lives on `Inputs and variables`, the only view model in the
 file, not on a separate one.
+
+**The HTML is set in the artboard's own fonts.** The `.riv` embeds Yekan Bakh
+VF for the Persian copy and Space Grotesk for the Latin lockup. Both were
+lifted out of the file, subsetted to Persian + Latin and converted to woff2
+under `fonts/`, so the loader, the error states and the desktop-only notice are
+set in the same typography as the animation instead of in whatever sans-serif
+the device happens to default to:
+
+```css
+--font-fa: "Yekan Bakh", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+--font-latin: "Space Grotesk", ui-monospace, SFMono-Regular, Menlo, monospace;
+```
+
+Which face and weight was not guessed: the heading "نمای کلی دستگاه گوارش" was
+rendered from each embedded font at every weight and matched against the same
+string in a screenshot of the running artboard. Yekan Bakh at `wght` 800 scored
+0.78 IoU at 830px against the artboard's 827px, with the next candidate at 0.42
+— so headings here are 800 and body copy 700, which is the weight the artboard
+sets even its small text in. Both files are variable, so one request per face
+covers every weight; both are served with a one-year immutable cache. Yekan
+Bakh's own axis defaults are Thin ExtraCondensed, so `font-weight` and
+`font-stretch` are always stated rather than left to default.
+
+Both faces ship in this repository inside the `.riv` already; `fonts/` only
+makes the same bytes reachable to CSS. Yekan Bakh is Fontiran's, so check the
+licence covers the deployment before shipping it commercially.
 
 Smaller points:
 
